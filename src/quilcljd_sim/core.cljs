@@ -12,17 +12,23 @@
 
 (defonce pqe #queue [])
 
+(defn random-queue [] (into cljs.core.PersistentQueue/EMPTY (take 450 (repeatedly #(rand-int 250)))))
+
+(defn ordered-queue [] (into cljs.core.PersistentQueue/EMPTY (take 400 (range 20 200 2))))
+
+;;[40 10 30 100 20 10 90 200 250 10 30 40 70 ]
+
 (defn setup []
                                         ; Set frame rate to 30 frames per second.
-  (q/frame-rate 1600000)
+  (q/frame-rate 20)
                                         ; Set color mode to HSB (HSV) instead of default RGB.
   (q/color-mode :hsb)
   (q/text-font (q/create-font "Arial" 28 true))
                                         ; setup function returns initial state. It contains
                                         ; circle color and position.
   {
-   :queue (into cljs.core.PersistentQueue/EMPTY (take 500 (repeatedly #(rand-int 250)))) ;;[40 10 30 100 20 10 90 200 250 10 30 40 70 ]
-   :desks [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+   :queue (random-queue)
+   :desks (into [] (take 30 (repeat 0)))
    })
 
 (def max-person 100)
@@ -46,7 +52,7 @@
                                         ; Update sketch state by changing circle color and position.
   (let [
         new-desks (into [] (map (fn [n]
-                                  (if (neg? n)
+                                  (if (or (zero? n) (neg? n))
                                     0
                                     (- n 1)))
                                 (:desks state)))
@@ -74,42 +80,53 @@
                   ]
               (q/fill 20 20 20)
               (q/text (int n) offset 10)
-              (q/fill 55 n 255 )
               (q/rect offset 20 desk-width desk-width)
+              (q/fill 55 n 255 )
               (q/rect offset 20 desk-width (* desk-width (/ n 255)))))
           desks)))
 
 (def person-base-size 0.4)
+(defn draw-person [i n]
+  (let [
+        person-pct (/ n max-person)
+        person-red (* person-pct 255)
+        person-size (* person-scale person-pct)
+        space (+ person-scale 8)
+        x (* i space)
+        y 100
+        ]
+    ;; (println "draw-person " i n x y person-red)
+    (q/fill person-red 55 255)
+    (q/with-translation [50 10]
+      (q/ellipse x y person-scale person-size))))
+
+(defn draw-queue-row [queue]
+  (doall (map-indexed draw-person queue)))
+
+(def row-height 20)
+
+(defn draw-queue-row-pos [i queue]
+  (let [y (* i row-height)
+        rotation-angle (if (even? i) q/PI 0)
+        ]
+    (println "draw-row " y rotation-angle)
+    (q/with-translation [10 y]
+      (draw-queue-row queue))))
+
+(defn partition-queue [queue]
+  (let [pp (partition 40 queue)]
+    pp))
+
+(defn draw-queue-rows [queue-rows]
+  (doall (map-indexed draw-queue-row-pos queue-rows)))
 
 (defn draw-queue [queue]
-  (doall (map-indexed
-          (fn [i n]
-            (let [
-                  person-pct (/ n max-person)
-                  person-red (* person-pct 255)
-                  person-size (* person-scale person-pct)
-                  space (+ person-scale 8)
-                  x (* i space)
-                  ]
-              (q/fill person-red 55 255)
-              (q/with-translation [50 10]
-                (q/ellipse x 100 person-scale person-size))
-              ))
-          queue)))
-
-(let [q (conj pqe 1 2 3 4)]
-  (doall (map #(+ 1 %1) q)))
+  (-> queue
+      partition-queue
+      draw-queue-rows))
 
 (defn pq [s]
   (apply conj #queue [] s))
-
-
-(== 4 (.indexOf [1 2 3 4 0] 0))
-(== 3 (.indexOf [1 2 3 4 0] 4))
-(== 0 (.indexOf [1 2 3 4 0] 1))
-(== 0 (.indexOf [1 2 3 4 0] 9))
-(.indexOf [1 2 3 4 0] 9)
-
 
 (defn draw-state [state]
                                         ; Clear the sketch by filling it with light-grey color.
@@ -129,7 +146,7 @@
 
 (q/defsketch quilcljd-sim
   :host "quilcljd-sim"
-  :size [900 500]
+  :size [1300 500]
                                         ; setup function called only once, during sketch initialization.
   :setup setup
                                         ; update-state is called on each iteration before draw-state.
